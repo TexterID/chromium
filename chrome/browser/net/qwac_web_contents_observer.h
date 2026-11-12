@@ -82,6 +82,8 @@ class QwacWebContentsObserver : public content::WebContentsObserver {
     void On2QwacVerificationComplete(
         const scoped_refptr<net::X509Certificate>& verified_2qwac);
 
+    void OnProcessingFinished();
+
     std::unique_ptr<network::SimpleURLLoader> simple_url_loader_;
     std::string hostname_;
     scoped_refptr<net::X509Certificate> tls_cert_;
