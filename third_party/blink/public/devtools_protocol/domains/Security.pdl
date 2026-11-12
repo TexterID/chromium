@@ -86,6 +86,11 @@ domain Security
       SecurityState securityState
       # Security state details about the page certificate.
       optional CertificateSecurityState certificateSecurityState
+      # Verified 2-QWAC certificate chain for the current primary page, separate from the TLS
+      # certificate. Certificates are base64-encoded DER, ordered from leaf to root.
+      # Omitted when no verified result is currently available; omission does not distinguish
+      # pending processing, a missing binding, disabled processing, or verification failure.
+      optional array of string twoQwacCertificateChain
       # The type of Safety Tip triggered on the page. Note that this field will be set even if the Safety Tip UI was not actually shown.
       optional SafetyTipInfo safetyTipInfo
       # Array of security state issues ids.

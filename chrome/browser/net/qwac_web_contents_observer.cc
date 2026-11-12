@@ -11,6 +11,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/storage_partition.h"
+#include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/features.h"
 #include "net/cert/cert_status_flags.h"
@@ -132,8 +133,7 @@ void QwacWebContentsObserver::QwacStatus::On2QwacDownloadComplete(
     std::optional<std::string> response_body) {
   if (!response_body) {
     RecordHistogram(QwacLinkProcessingResult::kDownloadFailed);
-    is_finished_ = true;
-    callback_list_.Notify();
+    OnProcessingFinished();
     return;
   }
 
@@ -153,9 +153,24 @@ void QwacWebContentsObserver::QwacStatus::On2QwacVerificationComplete(
   RecordHistogram(verified_2qwac
                       ? QwacLinkProcessingResult::kValid2Qwac
                       : QwacLinkProcessingResult::k2QwacVerificationFailed);
-  is_finished_ = true;
   verified_2qwac_ = verified_2qwac;
+  OnProcessingFinished();
+}
+
+void QwacWebContentsObserver::QwacStatus::OnProcessingFinished() {
+  is_finished_ = true;
+  // A callback can navigate or destroy the page (and therefore this status).
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   callback_list_.Notify();
+  if (!weak_this || !page().IsPrimary()) {
+    return;
+  }
+
+  // A page kept in the back/forward cache can finish processing after another
+  // page becomes primary. Only notify for the page that is currently visible.
+  // Each enabled DevTools Security session observes this existing notification.
+  content::WebContents::FromRenderFrameHost(&page().GetMainDocument())
+      ->DidChangeVisibleSecurityState();
 }
 
 QwacWebContentsObserver::QwacWebContentsObserver(tabs::TabInterface& tab)

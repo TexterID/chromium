@@ -121,6 +121,7 @@ if (!is_android) {
         "test/headless_mode_devtooled_browsertest.h",
         "test/headless_mode_protocol_browsertest.cc",
         "test/headless_mode_protocol_browsertest.h",
+        "test/headless_mode_qwac_browsertest.cc",
       ]
     }
 
@@ -156,6 +157,7 @@ if (!is_android) {
 
     if (is_linux || is_win || is_mac) {
       deps += [
+        "//chrome/browser/net",
         "//chrome/browser/profiles",
         "//chrome/browser/ui/browser_window",
         "//chrome/browser/ui/views/frame:toolbar_button_provider",
@@ -168,6 +170,10 @@ if (!is_android) {
         "//components/headless/test:shared_test",
         "//components/infobars/content",
         "//content/public/browser",
+        "//mojo/public/cpp/base",
+        "//net",
+        "//net:test_support",
+        "//services/cert_verifier/public/mojom",
         "//ui/display",
         "//ui/gfx",
         "//ui/views",

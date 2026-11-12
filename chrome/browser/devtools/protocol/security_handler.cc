@@ -236,6 +236,15 @@ CreateVisibleSecurityState(content::WebContents* web_contents) {
         std::move(certificate_security_state));
   }
 
+  if (state->two_qwac) {
+    auto chain = std::make_unique<protocol::Array<protocol::String>>();
+    for (const auto& cert : state->two_qwac->cert_buffers()) {
+      chain->push_back(base::Base64Encode(
+          net::x509_util::CryptoBufferAsStringPiece(cert.get())));
+    }
+    visible_security_state->SetTwoQwacCertificateChain(std::move(chain));
+  }
+
   auto safety_tip_info = CreateSafetyTipInfo(state->safety_tip_info);
   if (safety_tip_info) {
     visible_security_state->SetSafetyTipInfo(std::move(safety_tip_info));

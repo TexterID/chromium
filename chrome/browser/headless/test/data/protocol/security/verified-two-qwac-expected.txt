@@ -1,0 +1,42 @@
+Verified 2-QWAC chains in modern headless Chrome.
+
+Running test: enabledBeforeCompletion
+PASS: pending binding is not verified
+PASS: fixture used successful Chromium verification
+PASS: completion event contains the leaf-first verified chain
+PASS: the complete three-certificate chain is tested
+PASS: TLS certificate remains separate from the qualified certificate
+
+Running test: navigationWithoutBinding
+PASS: a page without a binding does not inherit the previous chain
+
+Running test: enabledAfterCompletion
+PASS: verification finishes while Security is disabled
+PASS: enabling Security returns the already verified chain
+
+Running test: invalidBinding
+PASS: Chromium rejects the invalid binding signature
+PASS: invalid binding exposes no verified chain
+
+Running test: sameDocumentReloadAndHistory
+PASS: valid page verifies before lifecycle checks
+PASS: same-document navigation retains the chain
+PASS: reload exposes only the current verified result
+PASS: back navigation restores the page-specific chain
+
+Running test: lateCompletionOnCachedPage
+PASS: the previous page stays alive and verifies in the back/forward cache
+PASS: late completion on a non-primary page emits no security event
+PASS: the current page still has no qualified chain
+PASS: restoring the late-verified page exposes its own chain
+
+Running test: disabledDuringPendingWork
+PASS: disabled Security emits no completion events
+PASS: re-enabling Security observes the stored result
+
+Running test: multipleSessions
+PASS: the first session receives the completion
+PASS: the second session independently receives the completion
+
+Running test: detachedDuringPendingWork
+PASS: destroying another session does not cancel verification or surviving sessions
