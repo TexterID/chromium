@@ -25,7 +25,8 @@ const browser = spawn(binary, [
   '--headless', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
   '--no-first-run', '--no-default-browser-check', '--use-mock-keychain',
 ], {stdio: ['ignore', 'ignore', 'pipe']});
-const closed = new Promise(resolveClosed => browser.once('close', resolveClosed));
+const closed = new Promise(
+    resolveClosed => browser.once('close', resolveClosed));
 
 let socket;
 let nextId = 0;
@@ -39,7 +40,8 @@ try {
     startupDeadline = setTimeout(
         () => reject(new Error('Browser startup timed out')), 30000);
     browser.once('error', reject);
-    browser.once('exit', code => reject(new Error(`Browser exited (${code}): ${stderr}`)));
+    browser.once('exit', code =>
+      reject(new Error(`Browser exited (${code}): ${stderr}`)));
     browser.stderr.on('data', chunk => {
       stderr = (stderr + chunk.toString()).slice(-8192);
       const match = stderr.match(/DevTools listening on (ws:\/\/\S+)/);
@@ -58,7 +60,8 @@ try {
 
   let sessionId;
   let receivedChain;
-  const verified = new Promise(resolveVerified => receivedChain = resolveVerified);
+  const verified = new Promise(
+      resolveVerified => receivedChain = resolveVerified);
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data);
     if (message.id) {
@@ -87,12 +90,14 @@ try {
     return new Promise((resolveResponse, reject) => {
       const id = ++nextId;
       pending.set(id, {resolve: resolveResponse, reject});
-      socket.send(JSON.stringify({id, method, params, sessionId: targetSessionId}));
+      socket.send(JSON.stringify(
+          {id, method, params, sessionId: targetSessionId}));
     });
   }
 
   const {targetId} = await send('Target.createTarget', {url: 'about:blank'});
-  ({sessionId} = await send('Target.attachToTarget', {targetId, flatten: true}));
+  ({sessionId} = await send(
+      'Target.attachToTarget', {targetId, flatten: true}));
   // The listener above is installed before enable, which sends an initial
   // snapshot. A later event carries the chain if verification completes.
   await send('Security.enable', {}, sessionId);
@@ -106,8 +111,10 @@ try {
     }),
   ]);
   if (result === 'timeout') {
-    console.log('No verified 2-QWAC result arrived during the observation window.');
-    console.log('Omission does not distinguish pending, absent, disabled, or failed processing.');
+    console.log(
+        'No verified 2-QWAC result arrived during the observation window.');
+    console.log('Omission does not distinguish pending, absent, disabled, ' +
+                'or failed processing.');
   }
   await send('Browser.close');
 } finally {
