@@ -103,6 +103,23 @@
           'invalid binding exposes no verified chain');
     },
 
+    async function bindingDownloadFailure() {
+      await session.navigate(origin + 'page/download-failure');
+      await control('wait-request', 'download-failure');
+      await snapshot(dp);
+      const completion = dp.Security.onceVisibleSecurityStateChanged();
+      const result = await control('fail-download', 'download-failure');
+      check(
+          result.finished && !result.verified,
+          'HTTP failure finishes binding processing without a verified chain');
+      check(
+          !hasChain(await completion),
+          'binding download failure emits a completion event without a chain');
+      check(
+          !hasChain(await snapshot(dp)),
+          'enabling Security after download failure still omits the chain');
+    },
+
     async function sameDocumentReloadAndHistory() {
       await session.navigate(origin + 'page/valid');
       check(
@@ -160,6 +177,46 @@
       checkChain(
           await restored,
           'restoring the late-verified page exposes its own chain');
+    },
+
+    async function destroyedPageDuringPendingWork() {
+      const survivor = await page.createSession();
+      await survivor.protocol.Security.enable();
+      const doomed = await testRunner.createPage({url: 'about:blank'});
+      const doomedSession = await doomed.createSession();
+      await doomedSession.protocol.Security.enable();
+      await doomedSession.navigate(origin + 'page/destroyed');
+      await control('wait-request', 'destroyed', doomed.targetId());
+
+      const bp = testRunner.browserP();
+      await bp.Target.setDiscoverTargets({discover: true});
+      const destroyed = bp.Target.onceTargetDestroyed(
+          event => event.params.targetId === doomed.targetId());
+      await bp.Target.closeTarget({targetId: doomed.targetId()});
+      await destroyed;
+      await barrier(dp);
+      await barrier(survivor.protocol);
+
+      const events = [];
+      const listener = event => events.push(event);
+      dp.Security.onVisibleSecurityStateChanged(listener);
+      survivor.protocol.Security.onVisibleSecurityStateChanged(listener);
+      const result = await control('release', 'destroyed');
+      await barrier(dp);
+      await barrier(survivor.protocol);
+      dp.Security.offVisibleSecurityStateChanged(listener);
+      survivor.protocol.Security.offVisibleSecurityStateChanged(listener);
+      check(!result.alive, 'closing the target destroys the pending QWAC page');
+      check(
+          events.length === 0,
+          'releasing a destroyed page emits no event to surviving sessions');
+      checkChain(
+          await snapshot(dp), 'the original session retains its own chain');
+      checkChain(
+          await snapshot(survivor.protocol),
+          'the second surviving session retains its own chain');
+      await survivor.disconnect();
+      await bp.Target.setDiscoverTargets({discover: false});
     },
 
     async function disabledDuringPendingWork() {

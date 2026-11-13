@@ -18,6 +18,11 @@ Running test: invalidBinding
 PASS: Chromium rejects the invalid binding signature
 PASS: invalid binding exposes no verified chain
 
+Running test: bindingDownloadFailure
+PASS: HTTP failure finishes binding processing without a verified chain
+PASS: binding download failure emits a completion event without a chain
+PASS: enabling Security after download failure still omits the chain
+
 Running test: sameDocumentReloadAndHistory
 PASS: valid page verifies before lifecycle checks
 PASS: same-document navigation retains the chain
@@ -29,6 +34,12 @@ PASS: the previous page stays alive and verifies in the back/forward cache
 PASS: late completion on a non-primary page emits no security event
 PASS: the current page still has no qualified chain
 PASS: restoring the late-verified page exposes its own chain
+
+Running test: destroyedPageDuringPendingWork
+PASS: closing the target destroys the pending QWAC page
+PASS: releasing a destroyed page emits no event to surviving sessions
+PASS: the original session retains its own chain
+PASS: the second surviving session retains its own chain
 
 Running test: disabledDuringPendingWork
 PASS: disabled Security emits no completion events

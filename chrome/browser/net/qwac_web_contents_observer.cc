@@ -159,10 +159,10 @@ void QwacWebContentsObserver::QwacStatus::On2QwacVerificationComplete(
 
 void QwacWebContentsObserver::QwacStatus::OnProcessingFinished() {
   is_finished_ = true;
-  // A callback can navigate or destroy the page (and therefore this status).
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  // Callbacks must not synchronously destroy this status or its page while
+  // callback_list_ is notifying them. See RegisterCallback().
   callback_list_.Notify();
-  if (!weak_this || !page().IsPrimary()) {
+  if (!page().IsPrimary()) {
     return;
   }
 

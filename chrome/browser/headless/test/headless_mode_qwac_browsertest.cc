@@ -34,6 +34,7 @@
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
 #include "net/dns/mock_host_resolver.h"
+#include "net/http/http_status_code.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/two_qwac_cert_binding_builder.h"
 #include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
@@ -42,7 +43,8 @@ namespace headless {
 namespace {
 
 using ControlReply = base::OnceCallback<void(base::DictValue)>;
-using ResponseReply = base::OnceCallback<void(std::string, std::string)>;
+using ResponseReply =
+    base::OnceCallback<void(net::HttpStatusCode, std::string, std::string)>;
 using RequestCallback =
     base::RepeatingCallback<void(const GURL&, ResponseReply)>;
 
@@ -61,10 +63,12 @@ class QwacTestResponse : public net::test_server::HttpResponse {
       base::WeakPtr<net::test_server::HttpResponseDelegate> delegate) override {
     auto reply = base::BindPostTaskToCurrentDefault(base::BindOnce(
         [](base::WeakPtr<net::test_server::HttpResponseDelegate> delegate,
-           std::string content_type, std::string body) {
+           net::HttpStatusCode status, std::string content_type,
+           std::string body) {
           if (delegate) {
             delegate->SendHeadersContentAndFinish(
-                net::HTTP_OK, "OK", {{"Content-Type", content_type}}, body);
+                status, net::GetHttpReasonPhrase(status),
+                {{"Content-Type", content_type}}, body);
           }
         },
         delegate));
@@ -144,7 +148,7 @@ class HeadlessModeQwacProtocolTest : public HeadlessModeProtocolBrowserTest {
                 url, base::BindOnce(
                          [](ResponseReply reply, base::DictValue result) {
                            std::move(reply).Run(
-                               "application/json",
+                               net::HTTP_OK, "application/json",
                                base::WriteJson(result).value());
                          },
                          std::move(reply)));
@@ -252,9 +256,12 @@ class HeadlessModeQwacProtocolTest : public HeadlessModeProtocolBrowserTest {
     }
 
     base::WeakPtr<content::Page> page;
-    if (command == "release") {
+    if (command == "release" || command == "fail-download") {
       page = pages_.at(id);
-      std::move(binding_replies_.at(id)).Run("application/jose", binding_);
+      std::move(binding_replies_.at(id))
+          .Run(command == "fail-download" ? net::HTTP_INTERNAL_SERVER_ERROR
+                                          : net::HTTP_OK,
+               "application/jose", binding_);
     } else {
       CHECK_EQ(command, "wait-finished");
       auto host = content::DevToolsAgentHost::GetForId(target);
@@ -271,6 +278,7 @@ class HeadlessModeQwacProtocolTest : public HeadlessModeProtocolBrowserTest {
               base::DictValue()
                   .Set("alive", !!page)
                   .Set("primary", page && page->IsPrimary())
+                  .Set("finished", status && status->is_finished())
                   .Set("verified", status && status->is_finished() &&
                                        status->verified_2qwac_cert()));
         },

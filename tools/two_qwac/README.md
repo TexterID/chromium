@@ -55,9 +55,11 @@ loader and verifier callback weak-pointer factory. Destroying the status cancels
 the loader's callback and invalidates the verifier callback's weak pointer.
 
 The new `OnProcessingFinished` helper sets the finished flag, then notifies the
-existing completion callbacks. It saves a local weak pointer before notification
-because a callback can destroy the status. It checks that weak pointer before
-accessing members again. This guards access to destroyed objects.
+existing completion callbacks. Those callbacks must not synchronously destroy
+the status or its page: the status owns a `base::OnceCallbackList`, which rejects
+destruction while it is notifying callbacks. Destruction must be deferred until
+notification returns. This preserves the existing callback contract; a weak
+pointer checked after `Notify()` cannot make synchronous destruction safe.
 
 A still-live old page is a separate problem: back/forward cache can retain both
 the page and its status after navigation. The helper checks `page().IsPrimary()`
@@ -120,11 +122,12 @@ harness. Its C++ fixture supplies an embedded HTTPS server, a generated
 three-certificate qualified chain, a signed binding to the server's actual TLS
 certificate, and test EUTL trust. A fixture-only HTTP control endpoint releases
 held binding responses and waits for verifier completion; tests do not use
-arbitrary sleeps. The expected output identifies nine lifecycle scenarios and
-23 assertions, including invalid signatures, independent sessions, disable,
-reload, same-document navigation, and completion on a still-live cached page.
+arbitrary sleeps. The expected output identifies eleven lifecycle scenarios and
+30 assertions, including invalid signatures, download failure, independent
+sessions, disable, reload, same-document navigation, completion on a still-live
+cached page, and destruction of a target while a binding response is pending.
 
-Local verification on macOS arm64 with Xcode 27.2:
+Original draft verification at `3d968eed7b`, on macOS arm64 with Xcode 27.2:
 
 | Check | Result |
 | --- | --- |
@@ -135,12 +138,24 @@ Local verification on macOS arm64 with Xcode 27.2:
 | Protocol compatibility, C++/GN formatting, and include dependencies | Passed |
 | Node example against a data URL | Passed; omitted qualified chain and exited normally |
 
+The review follow-up adds the download-failure and destroyed-target scenarios.
+Their browser execution is pending: the current merged checkout expects Clang
+`llvmorg-24-init-17044-gc3223914-12`, while the installed compiler is
+`llvmorg-24-init-17044-gc3223914-1`. The dependency checkouts also need to be
+synchronized with the merged source before rebuilding. The old browser binary
+does not contain the new fixture, so its results cannot verify these additions.
+
 For the local-only presubmit, run:
 
 ```sh
-PRESUBMIT_SKIP_NETWORK=1 git cl presubmit --upload origin/main
+PRESUBMIT_SKIP_NETWORK=1 git \
+  -c branch.codex/expose-two-qwac.remote=origin \
+  -c branch.codex/expose-two-qwac.merge=refs/heads/main \
+  cl presubmit --upload origin/main
 ```
 
+The temporary Git options let the Gerrit-oriented checker use Chromium's origin
+while keeping the branch's configured GitHub backup upstream unchanged.
 The configured contributor email is not yet in Chromium's `AUTHORS` file.
 The contributor check therefore reports that registration is needed; the
 network-enabled run also encountered HTTP 401 looking up Gerrit ownership.
@@ -163,6 +178,10 @@ third_party/node/mac_arm64/node-darwin-arm64/bin/node \
 launches modern headless Chrome in a temporary profile, connects through CDP,
 subscribes before enabling Security, and prints the TLS and qualified chains as
 separate fields. `QWAC_WAIT_MS` sets its observation window (default 30000 ms).
+`QWAC_TIMEOUT_MS` bounds each startup, WebSocket connection, and CDP command step
+(default 10000 ms). Disconnect or browser exit rejects pending commands and
+ends observation with an error. Cleanup waits at most 2000 ms (or the shorter
+configured timeout) after SIGTERM, then uses SIGKILL with another bounded wait.
 A timeout is not a claim that the site has no QWAC. The fixture-backed protocol
 test above provides the deterministic demonstration without a public site or a
 purchased certificate.
@@ -176,6 +195,19 @@ QWAC_WAIT_MS=1000 third_party/node/mac_arm64/node-darwin-arm64/bin/node \
 
 This checks launch, CDP subscription, navigation, omission handling, and shutdown.
 The HTTPS protocol fixture proves the positive verified-chain result.
+
+Run the standalone client regression tests with the same bundled Node:
+
+```sh
+third_party/node/mac_arm64/node-darwin-arm64/bin/node \
+  --test tools/two_qwac/observe.test.mjs
+```
+
+These use a local fake browser endpoint to check disconnects, browser exit,
+startup/handshake/command timeouts, observation interruption, forced shutdown,
+and a successful chain event. They check process exit and profile cleanup;
+all nine cases passed for the review follow-up. They do not substitute for
+Chromium's certificate-verification tests.
 
 ## Questions for the next revision
 
@@ -201,8 +233,8 @@ question. The verification result and restrictions remain unchanged.
 1. `third_party/blink/public/devtools_protocol/domains/Security.pdl`: what does
    omission mean, and why is the qualified chain outside the TLS certificate?
 2. `chrome/browser/net/qwac_web_contents_observer.h` and `.cc`: who owns the
-   status, what cancels each callback, and why are both a weak pointer and a
-   primary-page check necessary?
+   status, what cancels each callback, what must a completion callback avoid,
+   and why is the primary-page check necessary after notification?
 3. `chrome/browser/ssl/chrome_security_state_util.cc`: why can only the committed
    primary page supply the chain?
 4. `chrome/browser/devtools/protocol/security_handler.cc` and

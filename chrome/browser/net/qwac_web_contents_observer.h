@@ -63,6 +63,9 @@ class QwacWebContentsObserver : public content::WebContentsObserver {
     // Registers a callback to be run when processing the 2-QWAC has completed.
     // Should only be called if `is_finished()` is false. If the QwacStatus is
     // destroyed before the processing finishes, the callback will not be run.
+    // Callbacks must not synchronously destroy this status or its page during
+    // notification; base::OnceCallbackList does not support that. Schedule any
+    // such destruction after notification returns.
     base::CallbackListSubscription RegisterCallback(
         CallbackList::CallbackType cb);
 
