@@ -63,6 +63,9 @@ class QwacWebContentsObserver : public content::WebContentsObserver {
     // Registers a callback to be run when processing the 2-QWAC has completed.
     // Should only be called if `is_finished()` is false. If the QwacStatus is
     // destroyed before the processing finishes, the callback will not be run.
+    // Callbacks must not synchronously destroy this status or its page during
+    // notification; base::OnceCallbackList does not support that. Schedule any
+    // such destruction after notification returns.
     base::CallbackListSubscription RegisterCallback(
         CallbackList::CallbackType cb);
 
@@ -81,6 +84,8 @@ class QwacWebContentsObserver : public content::WebContentsObserver {
     void On2QwacDownloadComplete(std::optional<std::string> response_body);
     void On2QwacVerificationComplete(
         const scoped_refptr<net::X509Certificate>& verified_2qwac);
+
+    void OnProcessingFinished();
 
     std::unique_ptr<network::SimpleURLLoader> simple_url_loader_;
     std::string hostname_;
